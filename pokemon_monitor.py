@@ -10,7 +10,7 @@ URL = "https://www.pokemoncenter.com/search?q=elite+trainer+box"
 seen = set()
 
 print("Pokemon Center ETB monitor started...")
-
+send("✅ BOT TEST SUCCESS — Telegram alerts working")
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
