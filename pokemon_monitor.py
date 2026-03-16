@@ -1,8 +1,8 @@
 import requests
 import time
 
-BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
-CHAT_ID = "8262077424"
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"
 
 print("Pokemon Center ETB monitor started...")
 
@@ -16,18 +16,21 @@ def send(msg):
 
 def check():
     params = {
-        "q": "trainer box",
+        "q": "elite trainer box",
         "format": "json"
     }
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-}
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
     r = requests.get(API, params=params, headers=headers)
+
     try:
-    data = r.json()
-except:
-    print("API returned invalid response, retrying...")
-    return
+        data = r.json()
+    except:
+        print("API returned invalid response, retrying...")
+        return
 
     for product in data.get("results", []):
         title = product["name"].lower()
