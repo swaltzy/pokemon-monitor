@@ -22,7 +22,7 @@ print("Pokemon Center ETB monitor started...")
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-send("🚀 Channel alert test")
+
 def check():
 
     headers = {
