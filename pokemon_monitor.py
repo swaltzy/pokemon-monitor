@@ -8,7 +8,15 @@ CHAT_ID = "8262077424"
 URL = "https://www.pokemoncenter.com/search?q=elite+trainer+box"
 
 seen = set()
+last_daily_ping = 0
 
+def daily_ping():
+    global last_daily_ping
+    now = time.time()
+
+    if now - last_daily_ping > 86400:  # 24 hours
+        send("🤖 ETB Monitor still running (24h status check)")
+        last_daily_ping = now
 print("Pokemon Center ETB monitor started...")
 
 def send(msg):
