@@ -23,7 +23,11 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 }
     r = requests.get(API, params=params, headers=headers)
+    try:
     data = r.json()
+except:
+    print("API returned invalid response, retrying...")
+    return
 
     for product in data.get("results", []):
         title = product["name"].lower()
