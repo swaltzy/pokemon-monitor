@@ -3,7 +3,7 @@ import time
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
-CHAT_ID = "8262077424"
+CHAT_ID = "-1003851579025"
 
 URL = "https://www.pokemoncenter.com/search?q=elite+trainer+box"
 
