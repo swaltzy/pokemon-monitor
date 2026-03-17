@@ -6,7 +6,7 @@ import random
 CONFIG
 =====================
 
-BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
+BOT_TOKEN = "8653650833"
 CHAT_ID = "-1003851579025"
 
 API_URL = "https://www.pokemoncenter.com/api/search"
@@ -36,7 +36,7 @@ def daily_ping():
 global last_daily_ping
 now = time.time()
 
-if now - last_daily_ping > 86400:  # 24 hours
+if now - last_daily_ping > 86400:
     send("🤖 ETB Monitor still running (24h status check)")
     last_daily_ping = now
 =====================
@@ -50,7 +50,7 @@ headers = {
 }
 
 params = {
-    "q": "pokemon",   # scan all products
+    "q": "pokemon",
     "format": "json"
 }
 
@@ -72,7 +72,6 @@ for product in data.get("results", []):
 
     link = "https://www.pokemoncenter.com" + url_path
 
-    # FILTER FOR ETBs
     if "trainer box" in title or "etb" in title:
 
         if link not in seen:
@@ -100,7 +99,7 @@ while True:
 try:
     check()
     daily_ping()
-    time.sleep(random.uniform(2, 4))  # smart delay
+    time.sleep(random.uniform(2, 4))
 
 except Exception as e:
     print("Error:", e)
