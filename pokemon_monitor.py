@@ -45,7 +45,16 @@ def check():
 
                 seen.add(link)
 
-                msg = f"🚨 ETB DROP DETECTED\n\n{title}\n{link}"
+                msg = f"""
+🚨 *Pokémon Center Drop Detected*
+
+📦 *Product:* {title.title()}
+
+🛒 *Buy Now:*  
+{link}
+
+#pokemon #tcg #etb
+"""
 
                 print(msg)
 
