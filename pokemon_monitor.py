@@ -1,85 +1,107 @@
 import requests
 import time
 import random
-from bs4 import BeautifulSoup
 
-BOT_TOKEN = "YOUR_TOKEN"
-CHAT_ID = "-100..."
+=====================
+CONFIG
+=====================
 
-URL = "https://www.pokemoncenter.com/search?q=elite+trainer+box"
+BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
+CHAT_ID = "-1003851579025"
+
+API_URL = "https://www.pokemoncenter.com/api/search"
 
 seen = set()
 last_daily_ping = 0
 
 print("Pokemon Center ETB monitor started...")
 
+=====================
+SEND MESSAGE
+=====================
 
 def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg,
-        "parse_mode": "Markdown"
-    })
+url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+requests.post(url, data={
+"chat_id": CHAT_ID,
+"text": msg,
+"parse_mode": "Markdown"
+})
 
+=====================
+DAILY STATUS PING
+=====================
 
 def daily_ping():
-    global last_daily_ping
-    now = time.time()
+global last_daily_ping
+now = time.time()
 
-    if now - last_daily_ping > 86400:
-        send("🤖 ETB Monitor still running (24h status check)")
-        last_daily_ping = now
-
+if now - last_daily_ping > 86400:  # 24 hours
+    send("🤖 ETB Monitor still running (24h status check)")
+    last_daily_ping = now
+=====================
+MAIN CHECK (API BASED)
+=====================
 
 def check():
 
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
 
-    r = requests.get(URL, headers=headers, timeout=5)
-    soup = BeautifulSoup(r.text, "html.parser")
+params = {
+    "q": "pokemon",   # scan all products
+    "format": "json"
+}
 
-    products = soup.select("a[href*='/product/']")
+try:
+    r = requests.get(API_URL, params=params, headers=headers, timeout=5)
+    data = r.json()
 
-    for p in products:
+except:
+    print("API error, retrying...")
+    return
 
-        href = p.get("href")
-        if not href:
-            continue
+for product in data.get("results", []):
 
-        link = "https://www.pokemoncenter.com" + href
-        title = p.get_text(strip=True).lower()
+    title = product.get("name", "").lower()
+    url_path = product.get("url", "")
 
-        if "elite trainer box" in title or "etb" in title:
+    if not url_path:
+        continue
 
-            if link not in seen:
-                seen.add(link)
+    link = "https://www.pokemoncenter.com" + url_path
 
-                msg = f"""
-🚨 *Pokémon Center Drop Detected*
+    # FILTER FOR ETBs
+    if "trainer box" in title or "etb" in title:
 
-📦 *Product:* {title.title()}
+        if link not in seen:
+            seen.add(link)
 
-🛒 *Buy Now:*  
-{link}
+            msg = f"""
+
+🚨 Pokémon Center Drop Detected
+
+📦 Product: {title.title()}
+
+🛒 CLICK HERE TO BUY
 
 #pokemon #tcg #etb
 """
 
-                print(msg)
-                send(msg)
-
+            print(msg)
+            send(msg)
+=====================
+LOOP
+=====================
 
 while True:
 
-    try:
-        check()
-        daily_ping()
-        time.sleep(random.uniform(2, 4))
+try:
+    check()
+    daily_ping()
+    time.sleep(random.uniform(2, 4))  # smart delay
 
-    except Exception as e:
-
-        print("Error:", e)
-        time.sleep(20)
+except Exception as e:
+    print("Error:", e)
+    time.sleep(20)
