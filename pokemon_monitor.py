@@ -3,8 +3,8 @@ import time
 import random
 from bs4 import BeautifulSoup
 
-BOT_TOKEN = "YOUR_TOKEN"
-CHAT_ID = "-100YOUR_CHAT_ID"
+BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
+CHAT_ID = "-1003851579025"
 
 seen = {}
 last_daily_ping = 0
