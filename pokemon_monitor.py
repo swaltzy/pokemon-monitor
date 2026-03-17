@@ -3,17 +3,13 @@ import time
 import random
 from bs4 import BeautifulSoup
 
-# CONFIG
-
-BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
-CHAT_ID = "-1003851579025"
+BOT_TOKEN = "YOUR_TOKEN"
+CHAT_ID = "-100YOUR_CHAT_ID"
 
 seen = {}
 last_daily_ping = 0
 
-print("Pokemon Center ETB monitor started...")
-
-# SEND MESSAGE
+print("Multi-site Pokemon monitor started...")
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -23,35 +19,31 @@ def send(msg):
         "parse_mode": "Markdown"
     })
 
-# DAILY STATUS
-
 def daily_ping():
     global last_daily_ping
     now = time.time()
 
     if now - last_daily_ping > 86400:
-        send("🤖 ETB Monitor still running (24h status check)")
+        send("🤖 Monitor still running (24h check)")
         last_daily_ping = now
 
-# CHECK PRODUCTS
+# ----------------------
+# POKEMON CENTER
+# ----------------------
 
-def check():
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+def check_pokemon_center():
 
     try:
         r = requests.get(
             "https://www.pokemoncenter.com/search?q=elite+trainer+box",
-            headers=headers,
+            headers={"User-Agent": "Mozilla/5.0"},
             timeout=5
         )
 
         soup = BeautifulSoup(r.text, "html.parser")
 
     except:
-        print("Page error, retrying...")
+        print("PC error")
         return
 
     products = soup.select("a[href*='/product/']")
@@ -63,60 +55,122 @@ def check():
             continue
 
         link = "https://www.pokemoncenter.com" + href
-        title = p.get_text(strip=True).lower()
+        title = p.get_text(strip=True)
 
-        if "trainer box" not in title and "etb" not in title:
-            continue
+        if "trainer box" in title.lower() or "etb" in title.lower():
 
-        # detect stock from text
-        text = p.get_text().lower()
-
-        in_stock = True
-        if "out of stock" in text or "sold out" in text:
-            in_stock = False
-
-        # FIRST TIME SEEING PRODUCT
-        if link not in seen:
-            seen[link] = in_stock
-
-            if in_stock:
-                msg = f"""
-🚨 *NEW ETB DETECTED*
-
-📦 *Product:* {title.title()}
-
-🛒 [BUY NOW]({link})
-"""
-                print(msg)
-                send(msg)
-
-        # RESTOCK DETECTION
-        else:
-            previous_stock = seen[link]
-
-            if not previous_stock and in_stock:
+            if link not in seen:
                 seen[link] = True
 
                 msg = f"""
-♻️ *ETB RESTOCK DETECTED*
+🚨 *Pokémon Center Drop*
 
-📦 *Product:* {title.title()}
+📦 {title}
 
-🛒 [BUY NOW]({link})
+🛒 {link}
 """
-                print(msg)
                 send(msg)
 
-            elif previous_stock and not in_stock:
-                seen[link] = False
+# ----------------------
+# SMYTHS
+# ----------------------
 
+def check_smyths():
+
+    try:
+        r = requests.get(
+            "https://www.smythstoys.com/uk/en-gb/search/?text=pokemon+elite+trainer+box",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=5
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+    except:
+        print("Smyths error")
+        return
+
+    products = soup.select("a[href*='/product/']")
+
+    for p in products:
+
+        href = p.get("href")
+        if not href:
+            continue
+
+        link = "https://www.smythstoys.com" + href
+        title = p.get_text(strip=True)
+
+        if "pokemon" in title.lower():
+
+            if link not in seen:
+                seen[link] = True
+
+                msg = f"""
+🚨 *SMYTHS DROP*
+
+📦 {title}
+
+🛒 {link}
+"""
+                send(msg)
+
+# ----------------------
+# ARGOS
+# ----------------------
+
+def check_argos():
+
+    try:
+        r = requests.get(
+            "https://www.argos.co.uk/search/pokemon-elite-trainer-box/",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=5
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+    except:
+        print("Argos error")
+        return
+
+    products = soup.select("a")
+
+    for p in products:
+
+        href = p.get("href")
+        if not href or "/product/" not in href:
+            continue
+
+        link = "https://www.argos.co.uk" + href
+        title = p.get_text(strip=True)
+
+        if "pokemon" in title.lower():
+
+            if link not in seen:
+                seen[link] = True
+
+                msg = f"""
+🚨 *ARGOS DROP*
+
+📦 {title}
+
+🛒 {link}
+"""
+                send(msg)
+
+# ----------------------
 # LOOP
+# ----------------------
 
 while True:
 
     try:
-        check()
+        check_pokemon_center()
+        check_smyths()
+        check_argos()
         daily_ping()
+
         time.sleep(random.uniform(2, 4))
 
     except Exception as e:
