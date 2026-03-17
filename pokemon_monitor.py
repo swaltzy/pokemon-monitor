@@ -2,11 +2,9 @@ import requests
 import time
 import random
 
-=====================
 CONFIG
-=====================
 
-BOT_TOKEN = "8653650833"
+BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
 CHAT_ID = "-1003851579025"
 
 API_URL = "https://www.pokemoncenter.com/api/search"
@@ -16,9 +14,7 @@ last_daily_ping = 0
 
 print("Pokemon Center ETB monitor started...")
 
-=====================
 SEND MESSAGE
-=====================
 
 def send(msg):
 url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -28,9 +24,7 @@ requests.post(url, data={
 "parse_mode": "Markdown"
 })
 
-=====================
 DAILY STATUS PING
-=====================
 
 def daily_ping():
 global last_daily_ping
@@ -39,9 +33,7 @@ now = time.time()
 if now - last_daily_ping > 86400:
     send("🤖 ETB Monitor still running (24h status check)")
     last_daily_ping = now
-=====================
-MAIN CHECK (API BASED)
-=====================
+MAIN CHECK
 
 def check():
 
@@ -90,9 +82,7 @@ for product in data.get("results", []):
 
             print(msg)
             send(msg)
-=====================
 LOOP
-=====================
 
 while True:
 
