@@ -1,15 +1,14 @@
 import requests
 import time
 import random
+from bs4 import BeautifulSoup
 
 # CONFIG
 
 BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
 CHAT_ID = "-1003851579025"
 
-API_URL = "https://www.pokemoncenter.com/api/search"
-
-seen = set()
+seen = {}
 last_daily_ping = 0
 
 print("Pokemon Center ETB monitor started...")
@@ -24,7 +23,7 @@ def send(msg):
         "parse_mode": "Markdown"
     })
 
-# DAILY STATUS PING
+# DAILY STATUS
 
 def daily_ping():
     global last_daily_ping
@@ -34,7 +33,7 @@ def daily_ping():
         send("🤖 ETB Monitor still running (24h status check)")
         last_daily_ping = now
 
-# MAIN CHECK
+# CHECK PRODUCTS
 
 def check():
 
@@ -42,46 +41,74 @@ def check():
         "User-Agent": "Mozilla/5.0"
     }
 
-    params = {
-        "q": "pokemon",
-        "format": "json"
-    }
-
     try:
-        r = requests.get(API_URL, params=params, headers=headers, timeout=5)
-        data = r.json()
+        r = requests.get(
+            "https://www.pokemoncenter.com/search?q=elite+trainer+box",
+            headers=headers,
+            timeout=5
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
 
     except:
-        print("API error, retrying...")
+        print("Page error, retrying...")
         return
 
-    for product in data.get("results", []):
+    products = soup.select("a[href*='/product/']")
 
-        title = product.get("name", "").lower()
-        url_path = product.get("url", "")
+    for p in products:
 
-        if not url_path:
+        href = p.get("href")
+        if not href:
             continue
 
-        link = "https://www.pokemoncenter.com" + url_path
+        link = "https://www.pokemoncenter.com" + href
+        title = p.get_text(strip=True).lower()
 
-        if "trainer box" in title or "etb" in title:
+        if "trainer box" not in title and "etb" not in title:
+            continue
 
-            if link not in seen:
-                seen.add(link)
+        # detect stock from text
+        text = p.get_text().lower()
 
+        in_stock = True
+        if "out of stock" in text or "sold out" in text:
+            in_stock = False
+
+        # FIRST TIME SEEING PRODUCT
+        if link not in seen:
+            seen[link] = in_stock
+
+            if in_stock:
                 msg = f"""
-🚨 *Pokémon Center Drop Detected*
+🚨 *NEW ETB DETECTED*
 
 📦 *Product:* {title.title()}
 
-🛒 [CLICK HERE TO BUY]({link})
-
-#pokemon #tcg #etb
+🛒 [BUY NOW]({link})
 """
-
                 print(msg)
                 send(msg)
+
+        # RESTOCK DETECTION
+        else:
+            previous_stock = seen[link]
+
+            if not previous_stock and in_stock:
+                seen[link] = True
+
+                msg = f"""
+♻️ *ETB RESTOCK DETECTED*
+
+📦 *Product:* {title.title()}
+
+🛒 [BUY NOW]({link})
+"""
+                print(msg)
+                send(msg)
+
+            elif previous_stock and not in_stock:
+                seen[link] = False
 
 # LOOP
 
