@@ -1,3 +1,4 @@
+import cloudscraper
 import requests
 import time
 import random
@@ -9,14 +10,9 @@ CHAT_ID = "-1003851579025"
 seen = {}
 last_daily_ping = 0
 
-print("Pokemon Center PRO monitor started...")
+print("Pokemon Center STEALTH monitor started...")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
-    "Accept": "application/json",
-    "Referer": "https://www.pokemoncenter.com/",
-    "Accept-Language": "en-GB,en;q=0.9"
-}
+scraper = cloudscraper.create_scraper()
 
 KEYWORDS = [
     "elite trainer box",
@@ -50,12 +46,12 @@ def is_valid(title):
 
 def is_in_stock(link):
     try:
-        r = requests.get(link, headers=HEADERS, timeout=10)
+        r = scraper.get(link, timeout=10)
         text = r.text.lower()
 
-        if "add to cart" in text or "in stock" in text:
+        if "add to cart" in text:
             return True
-        if "sold out" in text or "out of stock" in text:
+        if "sold out" in text:
             return False
 
         return False
@@ -64,92 +60,80 @@ def is_in_stock(link):
 
 def fetch_products():
 
-    for _ in range(3):  # retry system
-        try:
-            r = requests.get(
-                "https://www.pokemoncenter.com/api/search",
-                params={"q": "pokemon", "format": "json"},
-                headers=HEADERS,
-                timeout=10
-            )
+    try:
+        r = scraper.get(
+            "https://www.pokemoncenter.com/search?q=pokemon",
+            timeout=10
+        )
 
-            if r.status_code != 200:
-                print("API blocked:", r.status_code)
-                time.sleep(2)
-                continue
+        return r.text
 
-            return r.json()
+    except Exception as e:
+        print("Scrape error:", e)
+        return None
 
-        except Exception as e:
-            print("API retry:", e)
-            time.sleep(2)
+def process_page(html):
 
-    return None
-
-def process_product(product):
-
-    title = product.get("name", "").lower()
-    url_path = product.get("url", "")
-
-    if not url_path or not is_valid(title):
+    if not html:
         return
 
-    link = "https://www.pokemoncenter.com" + url_path
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
 
-    in_stock = is_in_stock(link)
+    products = soup.select("a[href*='/product/']")
 
-    # NEW PRODUCT
-    if link not in seen:
-        seen[link] = in_stock
+    for p in products:
 
-        if in_stock:
-            msg = f"""
+        href = p.get("href")
+        if not href:
+            continue
+
+        link = "https://www.pokemoncenter.com" + href
+        title = p.get_text(strip=True).lower()
+
+        if not is_valid(title):
+            continue
+
+        in_stock = is_in_stock(link)
+
+        if link not in seen:
+            seen[link] = in_stock
+
+            if in_stock:
+                msg = f"""
 🚨 *NEW DROP*
 
 📦 *{title.title()}*
 
 🛒 [BUY NOW]({link})
 """
-            print("NEW:", title)
-            send(msg)
+                print("NEW:", title)
+                send(msg)
 
-    # RESTOCK
-    else:
-        prev = seen[link]
+        else:
+            prev = seen[link]
 
-        if not prev and in_stock:
-            seen[link] = True
+            if not prev and in_stock:
+                seen[link] = True
 
-            msg = f"""
+                msg = f"""
 ♻️ *RESTOCK DETECTED*
 
 📦 *{title.title()}*
 
 🛒 [BUY NOW]({link})
 """
-            print("RESTOCK:", title)
-            send(msg)
+                print("RESTOCK:", title)
+                send(msg)
 
-        elif prev and not in_stock:
-            seen[link] = False
-
-def check_all():
-
-    data = fetch_products()
-
-    if not data:
-        print("No data received")
-        return
-
-    products = data.get("results", [])
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        executor.map(process_product, products)
+            elif prev and not in_stock:
+                seen[link] = False
 
 while True:
 
     try:
-        check_all()
+        html = fetch_products()
+        process_page(html)
         daily_ping()
 
         time.sleep(random.uniform(6, 10))
