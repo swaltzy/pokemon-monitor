@@ -1,14 +1,20 @@
 import requests
 import time
 import random
+from bs4 import BeautifulSoup
 
 BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
 CHAT_ID = "-1003851579025"
 
-seen = set()
+seen = {}
 last_daily_ping = 0
 
-print("Pokemon Center monitor (API) started...")
+print("Pokemon Center ULTIMATE monitor started...")
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept-Language": "en-GB,en;q=0.9"
+}
 
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -26,22 +32,38 @@ def daily_ping():
         send("🤖 Pokémon Monitor Active — 24h Status Check ✅")
         last_daily_ping = now
 
+# 🔥 REAL STOCK CHECK
+def is_in_stock(link):
+
+    try:
+        r = requests.get(link, headers=HEADERS, timeout=10)
+        text = r.text.lower()
+
+        # Detect real stock signals
+        if "add to cart" in text or "in stock" in text:
+            return True
+
+        if "sold out" in text or "out of stock" in text:
+            return False
+
+        return False
+
+    except:
+        return False
+
 def check_pokemon_center():
 
     try:
         r = requests.get(
             "https://www.pokemoncenter.com/api/search",
-            params={
-                "q": "pokemon",
-                "format": "json"
-            },
+            params={"q": "pokemon", "format": "json"},
             timeout=10
         )
 
         data = r.json()
 
     except Exception as e:
-        print("PC API error:", e)
+        print("API error:", e)
         return
 
     for product in data.get("results", []):
@@ -54,8 +76,8 @@ def check_pokemon_center():
 
         link = "https://www.pokemoncenter.com" + url_path
 
-        # FILTER (ETBs + BOXES ONLY)
-        if not any(keyword in title for keyword in [
+        # FILTER
+        if not any(k in title for k in [
             "elite trainer box",
             "etb",
             "collection",
@@ -64,21 +86,43 @@ def check_pokemon_center():
         ]):
             continue
 
-        if link not in seen:
-            seen.add(link)
+        # 🔥 REAL STOCK CHECK
+        in_stock = is_in_stock(link)
 
-            msg = f"""
-🚨 *Pokémon Center Drop*
+        # FIRST TIME
+        if link not in seen:
+            seen[link] = in_stock
+
+            if in_stock:
+                msg = f"""
+🚨 *NEW DROP*
 
 📦 *{title.title()}*
 
 🛒 [BUY NOW]({link})
-
-#pokemon #tcg
 """
+                print(msg)
+                send(msg)
 
-            print(msg)
-            send(msg)
+        # RESTOCK
+        else:
+            previous = seen[link]
+
+            if not previous and in_stock:
+                seen[link] = True
+
+                msg = f"""
+♻️ *RESTOCK DETECTED*
+
+📦 *{title.title()}*
+
+🛒 [BUY NOW]({link})
+"""
+                print(msg)
+                send(msg)
+
+            elif previous and not in_stock:
+                seen[link] = False
 
 while True:
 
@@ -86,7 +130,7 @@ while True:
         check_pokemon_center()
         daily_ping()
 
-        time.sleep(random.uniform(5, 10))
+        time.sleep(random.uniform(6, 12))  # safer timing
 
     except Exception as e:
         print("Error:", e)
