@@ -9,20 +9,33 @@ CHAT_ID = "-1003851579025"
 seen = {}
 last_daily_ping = 0
 
-print("Pokemon Center FAST monitor started...")
+print("Pokemon Center PRO monitor started...")
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+    "Accept": "application/json",
+    "Referer": "https://www.pokemoncenter.com/",
     "Accept-Language": "en-GB,en;q=0.9"
 }
 
+KEYWORDS = [
+    "elite trainer box",
+    "etb",
+    "collection",
+    "premium box",
+    "ultra premium"
+]
+
 def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg,
-        "parse_mode": "Markdown"
-    })
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": msg,
+            "parse_mode": "Markdown"
+        }, timeout=10)
+    except:
+        print("Telegram error")
 
 def daily_ping():
     global last_daily_ping
@@ -33,15 +46,47 @@ def daily_ping():
         last_daily_ping = now
 
 def is_valid(title):
-    return any(k in title for k in [
-        "elite trainer box",
-        "etb",
-        "collection",
-        "premium box",
-        "ultra premium"
-    ])
+    return any(k in title for k in KEYWORDS)
 
-def check_product(product):
+def is_in_stock(link):
+    try:
+        r = requests.get(link, headers=HEADERS, timeout=10)
+        text = r.text.lower()
+
+        if "add to cart" in text or "in stock" in text:
+            return True
+        if "sold out" in text or "out of stock" in text:
+            return False
+
+        return False
+    except:
+        return False
+
+def fetch_products():
+
+    for _ in range(3):  # retry system
+        try:
+            r = requests.get(
+                "https://www.pokemoncenter.com/api/search",
+                params={"q": "pokemon", "format": "json"},
+                headers=HEADERS,
+                timeout=10
+            )
+
+            if r.status_code != 200:
+                print("API blocked:", r.status_code)
+                time.sleep(2)
+                continue
+
+            return r.json()
+
+        except Exception as e:
+            print("API retry:", e)
+            time.sleep(2)
+
+    return None
+
+def process_product(product):
 
     title = product.get("name", "").lower()
     url_path = product.get("url", "")
@@ -51,16 +96,9 @@ def check_product(product):
 
     link = "https://www.pokemoncenter.com" + url_path
 
-    try:
-        r = requests.get(link, headers=HEADERS, timeout=8)
-        text = r.text.lower()
+    in_stock = is_in_stock(link)
 
-        in_stock = "add to cart" in text or "in stock" in text
-
-    except:
-        return
-
-    # NEW
+    # NEW PRODUCT
     if link not in seen:
         seen[link] = in_stock
 
@@ -72,6 +110,7 @@ def check_product(product):
 
 🛒 [BUY NOW]({link})
 """
+            print("NEW:", title)
             send(msg)
 
     # RESTOCK
@@ -88,6 +127,7 @@ def check_product(product):
 
 🛒 [BUY NOW]({link})
 """
+            print("RESTOCK:", title)
             send(msg)
 
         elif prev and not in_stock:
@@ -95,24 +135,16 @@ def check_product(product):
 
 def check_all():
 
-    try:
-        r = requests.get(
-            "https://www.pokemoncenter.com/api/search",
-            params={"q": "pokemon", "format": "json"},
-            timeout=10
-        )
+    data = fetch_products()
 
-        data = r.json()
-
-    except:
-        print("API error")
+    if not data:
+        print("No data received")
         return
 
     products = data.get("results", [])
 
-    # 🔥 MULTI-THREADING (FAST)
     with ThreadPoolExecutor(max_workers=5) as executor:
-        executor.map(check_product, products)
+        executor.map(process_product, products)
 
 while True:
 
@@ -120,8 +152,8 @@ while True:
         check_all()
         daily_ping()
 
-        time.sleep(random.uniform(4, 7))  # faster loop
+        time.sleep(random.uniform(6, 10))
 
     except Exception as e:
-        print("Error:", e)
+        print("Main error:", e)
         time.sleep(15)
