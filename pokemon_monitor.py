@@ -1,196 +1,92 @@
 import requests
 import time
 import random
-from bs4 import BeautifulSoup
 
-BOT_TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"
-CHAT_ID = "-100PUT_YOUR_CHAT_ID_HERE"
+BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
+CHAT_ID = "-1003851579025"
 
-seen = {}
+seen = set()
 last_daily_ping = 0
 
-print("Premium Pokemon monitor started...")
+print("Pokemon Center monitor (API) started...")
 
-KEYWORDS = [
-    "elite trainer box",
-    "etb",
-    "ultra premium collection",
-    "premium collection",
-    "collection box",
-    "box set",
-    "premium box"
-]
-
-def is_valid_product(title):
-    title = title.lower()
-    return any(k in title for k in KEYWORDS)
-
-def send(msg, image=None):
-
-    if image:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-        requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "caption": msg,
-            "parse_mode": "Markdown",
-            "photo": image
-        })
-    else:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "text": msg,
-            "parse_mode": "Markdown"
-        })
+def send(msg):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": msg,
+        "parse_mode": "Markdown"
+    })
 
 def daily_ping():
     global last_daily_ping
     now = time.time()
 
     if now - last_daily_ping > 86400:
-        send("🤖 Monitor running (24h check)")
+        send("🤖 Pokémon Monitor Active — 24h Status Check ✅")
         last_daily_ping = now
 
 def check_pokemon_center():
 
     try:
         r = requests.get(
-            "https://www.pokemoncenter.com/search?q=pokemon",
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5
+            "https://www.pokemoncenter.com/api/search",
+            params={
+                "q": "pokemon",
+                "format": "json"
+            },
+            timeout=10
         )
 
-        soup = BeautifulSoup(r.text, "html.parser")
+        data = r.json()
 
-    except:
-        print("PC error")
+    except Exception as e:
+        print("PC API error:", e)
         return
 
-    products = soup.select("a[href*='/product/']")
+    for product in data.get("results", []):
 
-    for p in products:
+        title = product.get("name", "").lower()
+        url_path = product.get("url", "")
 
-        href = p.get("href")
-        if not href:
+        if not url_path:
             continue
 
-        link = "https://www.pokemoncenter.com" + href
-        title = p.get_text(strip=True)
+        link = "https://www.pokemoncenter.com" + url_path
 
-        if not is_valid_product(title):
+        # FILTER (ETBs + BOXES ONLY)
+        if not any(keyword in title for keyword in [
+            "elite trainer box",
+            "etb",
+            "collection",
+            "premium box",
+            "ultra premium"
+        ]):
             continue
 
         if link not in seen:
-            seen[link] = True
-
-            img_tag = p.find("img")
-            image = img_tag.get("src") if img_tag else None
+            seen.add(link)
 
             msg = f"""
 🚨 *Pokémon Center Drop*
 
-📦 *{title}*
+📦 *{title.title()}*
 
 🛒 [BUY NOW]({link})
 
 #pokemon #tcg
 """
 
-            send(msg, image)
-
-def check_smyths():
-
-    try:
-        r = requests.get(
-            "https://www.smythstoys.com/uk/en-gb/search/?text=pokemon",
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5
-        )
-
-        soup = BeautifulSoup(r.text, "html.parser")
-
-    except:
-        print("Smyths error")
-        return
-
-    products = soup.select("a")
-
-    for p in products:
-
-        href = p.get("href")
-        if not href or "/product/" not in href:
-            continue
-
-        link = "https://www.smythstoys.com" + href
-        title = p.get_text(strip=True)
-
-        if not is_valid_product(title):
-            continue
-
-        if link not in seen:
-            seen[link] = True
-
-            msg = f"""
-🚨 *Smyths Drop*
-
-📦 *{title}*
-
-🛒 {link}
-"""
-
-            send(msg)
-
-def check_argos():
-
-    try:
-        r = requests.get(
-            "https://www.argos.co.uk/search/pokemon/",
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5
-        )
-
-        soup = BeautifulSoup(r.text, "html.parser")
-
-    except:
-        print("Argos error")
-        return
-
-    products = soup.select("a")
-
-    for p in products:
-
-        href = p.get("href")
-        if not href or "/product/" not in href:
-            continue
-
-        link = "https://www.argos.co.uk" + href
-        title = p.get_text(strip=True)
-
-        if not is_valid_product(title):
-            continue
-
-        if link not in seen:
-            seen[link] = True
-
-            msg = f"""
-🚨 *Argos Drop*
-
-📦 *{title}*
-
-🛒 {link}
-"""
-
+            print(msg)
             send(msg)
 
 while True:
 
     try:
         check_pokemon_center()
-        check_smyths()
-        check_argos()
         daily_ping()
 
-        time.sleep(random.uniform(2, 4))
+        time.sleep(random.uniform(5, 10))
 
     except Exception as e:
         print("Error:", e)
