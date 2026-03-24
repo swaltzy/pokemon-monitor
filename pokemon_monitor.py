@@ -1,18 +1,19 @@
-import cloudscraper
 import requests
 import time
 import random
-from concurrent.futures import ThreadPoolExecutor
 
 BOT_TOKEN = "8653650833:AAGxD06P67Z7HVz6KCiePlsKvKo-SsXzH1Y"
 CHAT_ID = "-1003851579025"
 
-seen = {}
+seen = set()
 last_daily_ping = 0
 
-print("Pokemon Center STEALTH monitor started...")
+print("Pokemon Center STABLE monitor started...")
 
-scraper = cloudscraper.create_scraper()
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json"
+}
 
 KEYWORDS = [
     "elite trainer box",
@@ -31,7 +32,7 @@ def send(msg):
             "parse_mode": "Markdown"
         }, timeout=10)
     except:
-        print("Telegram error")
+        pass
 
 def daily_ping():
     global last_daily_ping
@@ -41,103 +42,69 @@ def daily_ping():
         send("🤖 Pokémon Monitor Active — 24h Status Check ✅")
         last_daily_ping = now
 
-def is_valid(title):
-    return any(k in title for k in KEYWORDS)
-
-def is_in_stock(link):
-    try:
-        r = scraper.get(link, timeout=10)
-        text = r.text.lower()
-
-        if "add to cart" in text:
-            return True
-        if "sold out" in text:
-            return False
-
-        return False
-    except:
-        return False
-
 def fetch_products():
 
     try:
-        r = scraper.get(
-            "https://www.pokemoncenter.com/search?q=pokemon",
+        r = requests.get(
+            "https://www.pokemoncenter.com/api/search",
+            params={"q": "pokemon", "format": "json"},
+            headers=HEADERS,
             timeout=10
         )
 
-        return r.text
+        if r.status_code != 200:
+            print("Blocked, backing off...")
+            time.sleep(20)
+            return None
 
-    except Exception as e:
-        print("Scrape error:", e)
+        return r.json()
+
+    except:
+        print("Connection issue, retrying...")
+        time.sleep(15)
         return None
 
-def process_page(html):
+def check():
 
-    if not html:
+    data = fetch_products()
+
+    if not data:
         return
 
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, "html.parser")
+    for product in data.get("results", []):
 
-    products = soup.select("a[href*='/product/']")
+        title = product.get("name", "").lower()
+        url_path = product.get("url", "")
 
-    for p in products:
-
-        href = p.get("href")
-        if not href:
+        if not url_path:
             continue
 
-        link = "https://www.pokemoncenter.com" + href
-        title = p.get_text(strip=True).lower()
+        link = "https://www.pokemoncenter.com" + url_path
 
-        if not is_valid(title):
+        if not any(k in title for k in KEYWORDS):
             continue
-
-        in_stock = is_in_stock(link)
 
         if link not in seen:
-            seen[link] = in_stock
+            seen.add(link)
 
-            if in_stock:
-                msg = f"""
-🚨 *NEW DROP*
-
-📦 *{title.title()}*
-
-🛒 [BUY NOW]({link})
-"""
-                print("NEW:", title)
-                send(msg)
-
-        else:
-            prev = seen[link]
-
-            if not prev and in_stock:
-                seen[link] = True
-
-                msg = f"""
-♻️ *RESTOCK DETECTED*
+            msg = f"""
+🚨 *Pokémon Center Drop*
 
 📦 *{title.title()}*
 
 🛒 [BUY NOW]({link})
 """
-                print("RESTOCK:", title)
-                send(msg)
-
-            elif prev and not in_stock:
-                seen[link] = False
+            print("Found:", title)
+            send(msg)
 
 while True:
 
     try:
-        html = fetch_products()
-        process_page(html)
+        check()
         daily_ping()
 
-        time.sleep(random.uniform(6, 10))
+        time.sleep(random.uniform(10, 20))  # slower = safer
 
     except Exception as e:
         print("Main error:", e)
-        time.sleep(15)
+        time.sleep(30)
