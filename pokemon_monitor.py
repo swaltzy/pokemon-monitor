@@ -9,7 +9,7 @@ CHAT_ID = "-1003851579025"
 seen = set()
 last_daily_ping = 0
 
-print("Pokemon Center HYBRID monitor started...")
+print("Pokemon Center CLEAN monitor started...")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -45,74 +45,32 @@ def daily_ping():
 def is_valid(title):
     return any(k in title for k in KEYWORDS)
 
-# 🔥 FALLBACK SCRAPER (Google)
-def google_fallback():
-    try:
-        query = "pokemon elite trainer box site:pokemoncenter.com"
-        url = f"https://www.google.com/search?q={query}"
-
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        links = soup.select("a")
-
-        for a in links:
-            href = a.get("href", "")
-
-            if "/url?q=" in href and "pokemoncenter.com" in href:
-                link = href.split("/url?q=")[1].split("&")[0]
-
-                if link not in seen:
-                    seen.add(link)
-
-                    msg = f"""
-🚨 *DROP DETECTED (Fallback)*
-
-🛒 {link}
-"""
-                    print("Fallback found:", link)
-                    send(msg)
-
-    except:
-        print("Fallback error")
-
-def fetch_api():
+def check():
 
     try:
         r = requests.get(
-            "https://www.pokemoncenter.com/api/search",
-            params={"q": "pokemon", "format": "json"},
+            "https://www.pokemoncenter.com/search?q=pokemon",
             headers=HEADERS,
-            timeout=10
+            timeout=15
         )
 
-        if r.status_code != 200:
-            return None
-
-        return r.json()
+        soup = BeautifulSoup(r.text, "html.parser")
 
     except:
-        return None
-
-def check():
-
-    data = fetch_api()
-
-    # 🔥 IF BLOCKED → USE FALLBACK
-    if not data:
-        print("API blocked → using fallback")
-        google_fallback()
+        print("Blocked, retrying later...")
+        time.sleep(30)
         return
 
-    for product in data.get("results", []):
+    products = soup.select("a[href*='/product/']")
 
-        title = product.get("name", "").lower()
-        url_path = product.get("url", "")
+    for p in products:
 
-        if not url_path:
+        href = p.get("href")
+        if not href:
             continue
 
-        link = "https://www.pokemoncenter.com" + url_path
+        link = "https://www.pokemoncenter.com" + href
+        title = p.get_text(strip=True).lower()
 
         if not is_valid(title):
             continue
@@ -136,7 +94,7 @@ while True:
         check()
         daily_ping()
 
-        time.sleep(random.uniform(12, 20))
+        time.sleep(random.uniform(15, 25))
 
     except Exception as e:
         print("Error:", e)
